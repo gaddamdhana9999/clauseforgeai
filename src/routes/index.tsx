@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useContract } from "@/lib/contract/store";
 import { EmptyState } from "@/components/EmptyState";
+import { AgentWorkflow } from "@/components/AgentWorkflow";
 import {
   FileText,
   Layers,
