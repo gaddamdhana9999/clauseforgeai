@@ -268,7 +268,6 @@ function Hero() {
   );
 }
 
-import { AgentWorkflow } from "@/components/AgentWorkflow";
 function AgentPipeline() {
   return <AgentWorkflow compact />;
 }
