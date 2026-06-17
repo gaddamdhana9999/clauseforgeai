@@ -10,6 +10,8 @@ import {
   Menu,
   Scale,
   CheckCircle2,
+  Handshake,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useContract } from "@/lib/contract/store";
 
@@ -18,6 +20,8 @@ const nav = [
   { to: "/upload", label: "Upload Contract", icon: Upload },
   { to: "/summary", label: "Summary", icon: FileText },
   { to: "/risk", label: "Risk Analysis", icon: ShieldAlert },
+  { to: "/negotiate", label: "Negotiation AI", icon: Handshake },
+  { to: "/compare", label: "Compare", icon: ArrowRightLeft },
   { to: "/report", label: "Executive Report", icon: FileBarChart },
   { to: "/chat", label: "AI Chat", icon: MessageSquare },
 ] as const;

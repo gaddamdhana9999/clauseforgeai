@@ -48,3 +48,42 @@ IN WITNESS WHEREOF, the Parties have executed this Agreement as of the Effective
 ACME TECHNOLOGIES, INC.                 GLOBEX INDUSTRIES LLC
 By: Sarah Chen, CEO                     By: Marcus Reynolds, COO
 `;
+
+export const DEMO_CONTRACT_B_NAME = "MSA_Acme_Initech_2024_v2.pdf";
+
+export const DEMO_CONTRACT_B_TEXT = `MASTER SERVICES AGREEMENT (RENEWAL DRAFT)
+
+This Master Services Agreement ("Agreement") is entered into and effective as of January 10, 2024 ("Effective Date") by and between Acme Technologies, Inc., a Delaware corporation ("Service Provider"), and Initech Holdings LLC, a Texas limited liability company ("Client").
+
+1. SERVICES
+Service Provider shall provide managed cloud infrastructure and support services under one or more Statements of Work.
+
+2. TERM AND TERMINATION
+Initial term of five (5) years, expiring January 9, 2029. This Agreement shall automatically renew for successive one-year terms unless either Party provides one hundred eighty (180) days prior written notice of non-renewal. Termination for convenience is NOT permitted during the initial term.
+
+3. FEES AND PAYMENT
+Net 60 payment terms. Late payments accrue interest at two percent (2%) per month. All fees are non-refundable.
+
+4. CONFIDENTIALITY
+Confidentiality obligations survive termination perpetually for trade secrets and for seven (7) years for all other Confidential Information.
+
+5. INTELLECTUAL PROPERTY
+Service Provider retains ownership of all work product, granting Client a non-exclusive, revocable license to use deliverables during the term.
+
+6. LIMITATION OF LIABILITY
+Service Provider's total liability is capped at three (3) months of fees. Client agrees to unlimited liability for breach of confidentiality and payment obligations.
+
+7. INDEMNIFICATION
+Client shall indemnify Service Provider against all third-party claims arising from Client's use of the Services.
+
+8. DATA PROTECTION
+Service Provider shall use commercially reasonable efforts to comply with applicable data protection laws.
+
+9. GOVERNING LAW
+This Agreement shall be governed by the laws of the State of Texas. Disputes shall be resolved exclusively in the state courts of Travis County, Texas.
+
+10. ASSIGNMENT
+Service Provider may assign this Agreement at its sole discretion. Client may not assign without prior written consent.
+
+IN WITNESS WHEREOF, the Parties have executed this Agreement.
+`;

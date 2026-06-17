@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useContract } from "@/lib/contract/store";
 import { EmptyState } from "@/components/EmptyState";
+import { AgentWorkflow } from "@/components/AgentWorkflow";
 import {
   FileText,
   Layers,
@@ -268,38 +269,5 @@ function Hero() {
 }
 
 function AgentPipeline() {
-  const steps = [
-    { name: "Upload Agent", desc: "Document ingestion & OCR" },
-    { name: "Retrieval Agent", desc: "Clause extraction" },
-    { name: "Risk Agent", desc: "Severity scoring" },
-    { name: "Compliance Agent", desc: "Regulatory mapping" },
-    { name: "Verification Agent", desc: "Cross-validation" },
-  ];
-  return (
-    <div className="card-elevated p-6">
-      <h3 className="font-display font-semibold text-navy mb-1">Multi-Agent Workflow</h3>
-      <p className="text-xs text-muted-foreground mb-5">Five specialized agents collaborated on this analysis</p>
-      <div className="flex flex-wrap items-stretch gap-2">
-        {steps.map((s, i) => (
-          <div key={s.name} className="flex items-stretch gap-2 flex-1 min-w-[160px]">
-            <div className="flex-1 rounded-lg border border-border bg-secondary p-3 animate-fade-in" style={{ animationDelay: `${i * 120}ms` }}>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-6 h-6 rounded-full gradient-navy text-gold text-[10px] flex items-center justify-center font-bold">
-                  {i + 1}
-                </div>
-                <div className="text-xs font-semibold text-navy">{s.name}</div>
-              </div>
-              <div className="text-[11px] text-muted-foreground pl-8">{s.desc}</div>
-              <div className="pl-8 mt-1">
-                <span className="inline-flex items-center gap-1 text-[10px] text-success font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                  Complete
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <AgentWorkflow compact />;
 }
