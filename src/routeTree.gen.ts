@@ -14,6 +14,7 @@ import { Route as SummaryRouteImport } from './routes/summary'
 import { Route as RiskRouteImport } from './routes/risk'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as NegotiateRouteImport } from './routes/negotiate'
+import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -42,6 +43,11 @@ const NegotiateRoute = NegotiateRouteImport.update({
   path: '/negotiate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompareRoute = CompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -56,6 +62,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
+  '/compare': typeof CompareRoute
   '/negotiate': typeof NegotiateRoute
   '/report': typeof ReportRoute
   '/risk': typeof RiskRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
+  '/compare': typeof CompareRoute
   '/negotiate': typeof NegotiateRoute
   '/report': typeof ReportRoute
   '/risk': typeof RiskRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
+  '/compare': typeof CompareRoute
   '/negotiate': typeof NegotiateRoute
   '/report': typeof ReportRoute
   '/risk': typeof RiskRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/chat'
+    | '/compare'
     | '/negotiate'
     | '/report'
     | '/risk'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/chat'
+    | '/compare'
     | '/negotiate'
     | '/report'
     | '/risk'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/chat'
+    | '/compare'
     | '/negotiate'
     | '/report'
     | '/risk'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRoute: typeof ChatRoute
+  CompareRoute: typeof CompareRoute
   NegotiateRoute: typeof NegotiateRoute
   ReportRoute: typeof ReportRoute
   RiskRoute: typeof RiskRoute
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NegotiateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/compare': {
+      id: '/compare'
+      path: '/compare'
+      fullPath: '/compare'
+      preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chat': {
       id: '/chat'
       path: '/chat'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRoute: ChatRoute,
+  CompareRoute: CompareRoute,
   NegotiateRoute: NegotiateRoute,
   ReportRoute: ReportRoute,
   RiskRoute: RiskRoute,
