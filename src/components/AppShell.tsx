@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Handshake,
   ArrowRightLeft,
+  Sparkles,
 } from "lucide-react";
 import { useContract } from "@/lib/contract/store";
 
