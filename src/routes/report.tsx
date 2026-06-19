@@ -166,10 +166,21 @@ function ReportPage() {
               <span className="px-2 py-1 rounded bg-success text-white font-bold">{analysis.lowCount} Low</span>
             </div>
           </div>
-          <ul className="space-y-1.5 text-sm">
+          <ul className="space-y-2 text-sm">
             {analysis.risks.map((r, i) => (
-              <li key={i}>
-                <b className="text-navy">{r.category}:</b> {r.explanation}
+              <li key={i} className="border-l-2 border-border pl-3">
+                <div>
+                  <b className="text-navy">{r.category}</b>{" "}
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    · clause {r.source.clauseNumber} · {r.source.heading}
+                  </span>
+                </div>
+                <div className="text-navy/90">{r.explanation}</div>
+                {r.evidence.length > 0 && (
+                  <div className="text-xs text-muted-foreground italic mt-0.5">
+                    Evidence: {r.evidence.join("; ")}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -177,8 +188,8 @@ function ReportPage() {
 
         <Section n="4" title="Compliance Assessment">
           <p>
-            Compliance posture is rated at <b>{analysis.complianceScore}%</b>. The contract references
-            applicable regulatory regimes and aligns with industry-standard certifications.
+            Compliance posture is rated at <b>{analysis.complianceScore}%</b>, derived from the grounded
+            findings against named frameworks and contractual commitments in the uploaded document.
           </p>
         </Section>
 
@@ -188,7 +199,7 @@ function ReportPage() {
               .filter((r) => r.severity !== "low")
               .map((r, i) => (
                 <li key={i}>
-                  <b>{r.category}:</b> {r.recommendation}
+                  <b>Clause {r.source.clauseNumber} · {r.source.heading}:</b> {r.recommendation}
                 </li>
               ))}
             {analysis.risks.filter((r) => r.severity !== "low").length === 0 && (
