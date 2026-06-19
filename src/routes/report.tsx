@@ -166,24 +166,44 @@ function ReportPage() {
               <span className="px-2 py-1 rounded bg-success text-white font-bold">{analysis.lowCount} Low</span>
             </div>
           </div>
-          <ul className="space-y-2 text-sm">
-            {analysis.risks.map((r, i) => (
-              <li key={i} className="border-l-2 border-border pl-3">
-                <div>
-                  <b className="text-navy">{r.category}</b>{" "}
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    · clause {r.source.clauseNumber} · {r.source.heading}
-                  </span>
-                </div>
-                <div className="text-navy/90">{r.explanation}</div>
-                {r.evidence.length > 0 && (
-                  <div className="text-xs text-muted-foreground italic mt-0.5">
-                    Evidence: {r.evidence.join("; ")}
+          {(() => {
+            const groups = new Map<string, typeof analysis.risks>();
+            analysis.risks.forEach((r) => {
+              const cat = analysis.clauses.find((c) => c.number === r.source.clauseNumber)?.category ?? r.category;
+              const arr = groups.get(cat) ?? [];
+              arr.push(r);
+              groups.set(cat, arr);
+            });
+            return (
+              <div className="space-y-4">
+                {Array.from(groups.entries()).map(([cat, list]) => (
+                  <div key={cat}>
+                    <div className="text-xs uppercase tracking-wider font-bold text-royal mb-1.5">
+                      {cat} ({list.length})
+                    </div>
+                    <ul className="space-y-2 text-sm">
+                      {list.map((r, i) => (
+                        <li key={i} className="border-l-2 border-border pl-3">
+                          <div>
+                            <b className="text-navy">{r.category}</b>{" "}
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                              · clause {r.source.clauseNumber} · {r.source.heading}
+                            </span>
+                          </div>
+                          <div className="text-navy/90">{r.explanation}</div>
+                          {r.evidence.length > 0 && (
+                            <div className="text-xs text-muted-foreground italic mt-0.5">
+                              Evidence: {r.evidence.join("; ")}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                ))}
+              </div>
+            );
+          })()}
         </Section>
 
         <Section n="4" title="Compliance Assessment">
