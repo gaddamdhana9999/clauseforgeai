@@ -81,9 +81,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             {fileName ? (
               <div className="text-xs">
-                <div className="flex items-center gap-1.5 text-gold">
+                <div className={`flex items-center gap-1.5 ${isDemo ? "text-gold" : "text-success"}`}>
                   <CheckCircle2 className="w-3 h-3" />
-                  <span className="font-medium">{isDemo ? "Demo loaded" : "Loaded"}</span>
+                  <span className="font-medium">{isDemo ? "Demo Mode" : "Uploaded Contract"}</span>
                 </div>
                 <div className="truncate text-sidebar-foreground/70 mt-0.5" title={fileName}>
                   {fileName}
