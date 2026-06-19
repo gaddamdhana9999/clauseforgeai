@@ -18,10 +18,27 @@ export interface RiskItem {
   evidence: string[]; // bullet-list of literal patterns found in the clause
 }
 
+export type ClauseCategory =
+  | "Payment Terms"
+  | "Termination"
+  | "Confidentiality"
+  | "Intellectual Property"
+  | "Governing Law"
+  | "Liability"
+  | "Compliance"
+  | "Indemnification"
+  | "Assignment"
+  | "Warranties"
+  | "Force Majeure"
+  | "Services"
+  | "Dispute Resolution"
+  | "General";
+
 export interface ParsedClause {
   number: string;
   heading: string;
   body: string;
+  category: ClauseCategory;
 }
 
 export interface ContractAnalysis {
@@ -38,6 +55,7 @@ export interface ContractAnalysis {
   amounts: string[];
   totalClauses: number;
   clauses: ParsedClause[];
+  clauseCategories: ClauseCategory[];
   risks: RiskItem[];
   riskScore: number;
   complianceScore: number;
