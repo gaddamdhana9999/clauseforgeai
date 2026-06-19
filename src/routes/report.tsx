@@ -95,18 +95,20 @@ function ReportPage() {
     writeHeading("3. Risk Assessment");
     writeBody(`Overall Risk Score: ${analysis.riskScore}/100`);
     analysis.risks.forEach((r) => {
-      writeBody(`• [${r.severity.toUpperCase()}] ${r.category}: ${r.explanation} Impact: ${r.impact}`);
+      writeBody(
+        `• [${r.severity.toUpperCase()}] ${r.category} — Source: clause ${r.source.clauseNumber} (${r.source.heading}).\n  Finding: ${r.explanation}\n  Impact: ${r.impact}\n  Evidence: ${r.evidence.join("; ") || "n/a"}`,
+      );
     });
 
     writeHeading("4. Compliance Assessment");
     writeBody(
-      `Compliance Score: ${analysis.complianceScore}%. The contract references the relevant regulatory frameworks and maintains industry-standard certifications where applicable.`,
+      `Compliance Score: ${analysis.complianceScore}%. Derived from grounded findings against named frameworks and contractual commitments.`,
     );
 
     writeHeading("5. Recommendations");
     analysis.risks
       .filter((r) => r.severity !== "low")
-      .forEach((r) => writeBody(`• ${r.category}: ${r.recommendation}`));
+      .forEach((r) => writeBody(`• [Clause ${r.source.clauseNumber} · ${r.source.heading}] ${r.recommendation}`));
 
     writeHeading("6. Final Decision");
     writeBody(`Decision: ${analysis.decision}. ${d.copy}`);
@@ -164,10 +166,21 @@ function ReportPage() {
               <span className="px-2 py-1 rounded bg-success text-white font-bold">{analysis.lowCount} Low</span>
             </div>
           </div>
-          <ul className="space-y-1.5 text-sm">
+          <ul className="space-y-2 text-sm">
             {analysis.risks.map((r, i) => (
-              <li key={i}>
-                <b className="text-navy">{r.category}:</b> {r.explanation}
+              <li key={i} className="border-l-2 border-border pl-3">
+                <div>
+                  <b className="text-navy">{r.category}</b>{" "}
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    · clause {r.source.clauseNumber} · {r.source.heading}
+                  </span>
+                </div>
+                <div className="text-navy/90">{r.explanation}</div>
+                {r.evidence.length > 0 && (
+                  <div className="text-xs text-muted-foreground italic mt-0.5">
+                    Evidence: {r.evidence.join("; ")}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -175,8 +188,8 @@ function ReportPage() {
 
         <Section n="4" title="Compliance Assessment">
           <p>
-            Compliance posture is rated at <b>{analysis.complianceScore}%</b>. The contract references
-            applicable regulatory regimes and aligns with industry-standard certifications.
+            Compliance posture is rated at <b>{analysis.complianceScore}%</b>, derived from the grounded
+            findings against named frameworks and contractual commitments in the uploaded document.
           </p>
         </Section>
 
@@ -186,7 +199,7 @@ function ReportPage() {
               .filter((r) => r.severity !== "low")
               .map((r, i) => (
                 <li key={i}>
-                  <b>{r.category}:</b> {r.recommendation}
+                  <b>Clause {r.source.clauseNumber} · {r.source.heading}:</b> {r.recommendation}
                 </li>
               ))}
             {analysis.risks.filter((r) => r.severity !== "low").length === 0 && (

@@ -132,9 +132,14 @@ function RiskPage() {
                       <div className="text-xs text-muted-foreground">{r.clause}</div>
                     </div>
                   </div>
-                  <span className={`text-[10px] px-2.5 py-1 rounded-full ${s.bg} ${s.text} font-bold tracking-wider`}>
-                    {s.label}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-1 rounded bg-secondary border border-border text-navy font-semibold">
+                      Clause {r.source.clauseNumber} · {r.source.heading}
+                    </span>
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full ${s.bg} ${s.text} font-bold tracking-wider`}>
+                      {s.label}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-4 text-sm">
@@ -158,10 +163,22 @@ function RiskPage() {
                   </div>
                 </div>
 
-                {r.excerpt && (
-                  <div className="mt-3 p-3 bg-secondary border-l-2 border-gold rounded text-xs italic text-muted-foreground flex gap-2">
-                    <Quote className="w-3.5 h-3.5 shrink-0 mt-0.5 text-gold" />
-                    {r.excerpt}
+                {r.evidence.length > 0 && (
+                  <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                    <div className="p-3 bg-secondary rounded border border-border">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+                        Evidence Extracted
+                      </div>
+                      <ul className="text-xs text-navy list-disc pl-4 space-y-0.5">
+                        {r.evidence.map((e, j) => <li key={j}>{e}</li>)}
+                      </ul>
+                    </div>
+                    <div className="p-3 bg-card border-l-2 border-gold rounded text-xs italic text-muted-foreground flex gap-2">
+                      <Quote className="w-3.5 h-3.5 shrink-0 mt-0.5 text-gold" />
+                      <span>
+                        <b className="not-italic text-navy">Source — clause {r.source.clauseNumber} ({r.source.heading}):</b> {r.source.excerpt}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
