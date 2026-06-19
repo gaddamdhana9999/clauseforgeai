@@ -260,7 +260,7 @@ function Hero() {
       <div className="absolute -right-12 -top-12 w-48 h-48 rounded-full bg-gold/20 blur-3xl" />
       <div className="relative">
         <div className="inline-block px-3 py-1 rounded-full bg-gold/20 text-gold text-xs font-medium mb-3">
-          Enterprise · AI-Powered · Hackathon Build
+          Enterprise · AI-Powered · Contract Intelligence Platform
         </div>
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">
           Contract Intelligence, in Minutes
