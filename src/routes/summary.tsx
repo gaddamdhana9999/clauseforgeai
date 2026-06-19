@@ -12,6 +12,8 @@ import {
   Gavel,
   ListChecks,
   Scale,
+  Layers,
+  Tag,
 } from "lucide-react";
 
 export const Route = createFileRoute("/summary")({
@@ -120,6 +122,68 @@ function SummaryPage() {
         <Card icon={Scale} label="Notice Period">
           {analysis.noticePeriod}
         </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="card-elevated p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Layers className="w-5 h-5 text-royal" />
+            <h3 className="font-display font-semibold text-navy">Total Clauses Extracted</h3>
+          </div>
+          <div className="text-5xl font-display font-bold text-navy">{analysis.clauses.length}</div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Sections detected via heading-based and semantic extraction.
+          </p>
+        </div>
+        <div className="card-elevated p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Tag className="w-5 h-5 text-royal" />
+            <h3 className="font-display font-semibold text-navy">
+              Clause Categories Detected ({analysis.clauseCategories.length})
+            </h3>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {analysis.clauseCategories.map((cat) => (
+              <span
+                key={cat}
+                className="text-xs px-2.5 py-1 rounded-full bg-navy text-gold font-semibold"
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="card-elevated p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <FileText className="w-5 h-5 text-royal" />
+          <h3 className="font-display font-semibold text-navy">Extracted Clauses</h3>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          {analysis.clauses.map((c) => (
+            <div
+              key={c.number + c.heading}
+              className="rounded-lg border border-border bg-secondary/40 p-4"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="text-xs text-muted-foreground font-semibold">
+                  Clause {c.number}
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-royal text-white font-bold uppercase tracking-wider">
+                  {c.category}
+                </span>
+              </div>
+              <div className="font-display font-semibold text-navy text-sm leading-tight mb-1.5">
+                {c.heading}
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                {c.body.replace(/\s+/g, " ").slice(0, 240)}
+                {c.body.length > 240 ? "…" : ""}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card-elevated p-5">

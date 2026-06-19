@@ -18,10 +18,27 @@ export interface RiskItem {
   evidence: string[]; // bullet-list of literal patterns found in the clause
 }
 
+export type ClauseCategory =
+  | "Payment Terms"
+  | "Termination"
+  | "Confidentiality"
+  | "Intellectual Property"
+  | "Governing Law"
+  | "Liability"
+  | "Compliance"
+  | "Indemnification"
+  | "Assignment"
+  | "Warranties"
+  | "Force Majeure"
+  | "Services"
+  | "Dispute Resolution"
+  | "General";
+
 export interface ParsedClause {
   number: string;
   heading: string;
   body: string;
+  category: ClauseCategory;
 }
 
 export interface ContractAnalysis {
@@ -38,6 +55,7 @@ export interface ContractAnalysis {
   amounts: string[];
   totalClauses: number;
   clauses: ParsedClause[];
+  clauseCategories: ClauseCategory[];
   risks: RiskItem[];
   riskScore: number;
   complianceScore: number;
@@ -55,34 +73,116 @@ const MONEY_RE = /\$\s?[\d,]+(?:\.\d+)?(?:\s?(?:million|billion|thousand|M|B|K))
 
 /* ---------------- Clause parsing ---------------- */
 
+const CATEGORY_RULES: { category: ClauseCategory; patterns: RegExp[] }[] = [
+  { category: "Payment Terms", patterns: [/\b(payment|fees?|invoice|net\s?\d+|compensation|pricing|billing)\b/i] },
+  { category: "Termination", patterns: [/\b(terminat|termination|expiration|renewal|term and|notice of non-?renewal)\b/i] },
+  { category: "Confidentiality", patterns: [/\b(confidential|non[- ]disclosure|nda|proprietary information|trade secret)\b/i] },
+  { category: "Intellectual Property", patterns: [/\b(intellectual\s+property|\bip\b|work\s+product|ownership|copyright|patent|trademark|work\s+made\s+for\s+hire)\b/i] },
+  { category: "Governing Law", patterns: [/\b(governing\s+law|jurisdiction|choice\s+of\s+law|venue)\b/i] },
+  { category: "Dispute Resolution", patterns: [/\b(arbitration|mediation|dispute\s+resolution|binding\s+arbitration)\b/i] },
+  { category: "Liability", patterns: [/\b(limitation\s+of\s+liability|liability|damages|consequential)\b/i] },
+  { category: "Indemnification", patterns: [/\b(indemnif|hold\s+harmless)\b/i] },
+  { category: "Compliance", patterns: [/\b(gdpr|hipaa|ccpa|soc\s?2|iso\s?27001|data\s+protection|compliance|regulatory|security)\b/i] },
+  { category: "Assignment", patterns: [/\b(assign|assignment|successors and assigns|change\s+of\s+control)\b/i] },
+  { category: "Warranties", patterns: [/\b(warrant(y|ies)|disclaim|as\s+is)\b/i] },
+  { category: "Force Majeure", patterns: [/\b(force\s+majeure|acts?\s+of\s+god|beyond\s+(?:reasonable\s+)?control)\b/i] },
+  { category: "Services", patterns: [/\b(services|statement\s+of\s+work|sow|scope\s+of\s+work|deliverables)\b/i] },
+];
+
+function categorize(heading: string, body: string): ClauseCategory {
+  const hayHeading = heading.toLowerCase();
+  const hayBody = body.toLowerCase();
+  // Prefer heading match (stronger signal)
+  for (const rule of CATEGORY_RULES) {
+    if (rule.patterns.some((p) => p.test(hayHeading))) return rule.category;
+  }
+  // Score body matches across all categories and pick best
+  let best: { category: ClauseCategory; score: number } = { category: "General", score: 0 };
+  for (const rule of CATEGORY_RULES) {
+    let score = 0;
+    for (const p of rule.patterns) {
+      const m = hayBody.match(new RegExp(p.source, "gi"));
+      if (m) score += m.length;
+    }
+    if (score > best.score) best = { category: rule.category, score };
+  }
+  return best.category;
+}
+
 export function parseClauses(text: string): ParsedClause[] {
   const T = text.replace(/\r/g, "");
-  const re = /(^|\n)\s*(\d{1,2})\.\s+([A-Z][A-Z0-9 ,&/'\-]{2,80})\n/g;
   const matches: { num: string; heading: string; index: number }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(T))) {
-    matches.push({ num: m[2], heading: m[3].trim(), index: m.index + m[1].length });
+
+  // Heading patterns (tried in order; overlapping matches deduped by index)
+  const patterns: RegExp[] = [
+    // "1. HEADING" or "12. HEADING" on its own line (ALL CAPS heading)
+    /(^|\n)\s*(\d{1,2})\.\s+([A-Z][A-Z0-9 ,&/'\-]{2,80})(?=\n)/g,
+    // "1.1 Heading" or "1.1. Heading" (mixed case)
+    /(^|\n)\s*(\d{1,2}\.\d{1,2})\.?\s+([A-Z][A-Za-z0-9 ,&/'\-]{2,80})(?=\n)/g,
+    // "Section 1. Heading" / "Article 1. Heading" / "Clause 1. Heading"
+    /(^|\n)\s*(?:Section|Article|Clause)\s+(\d{1,2}(?:\.\d{1,2})?)\.?\s*[—:\-]?\s*([A-Z][A-Za-z0-9 ,&/'\-]{2,80})(?=\n)/g,
+    // Standalone ALL CAPS heading line (no leading number) — at least 2 words
+    /(^|\n)()([A-Z][A-Z0-9 ,&/'\-]{4,80}(?:\s+[A-Z][A-Z0-9 ,&/'\-]{1,40}){0,6})(?=\n[A-Z])/g,
+  ];
+
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((m = re.exec(T))) {
+      const idx = m.index + m[1].length;
+      // Skip if heading is a contract-wide title like "MASTER SERVICES AGREEMENT" near top
+      if (m[3].trim().length < 3) continue;
+      matches.push({ num: m[2] || "", heading: m[3].trim(), index: idx });
+    }
   }
-  if (matches.length === 0) {
-    // fallback: split on double newlines, derive headings
+
+  // Dedupe by index, sort by position
+  const seen = new Set<number>();
+  const sorted = matches
+    .sort((a, b) => a.index - b.index)
+    .filter((x) => {
+      if (seen.has(x.index)) return false;
+      seen.add(x.index);
+      return true;
+    });
+
+  if (sorted.length === 0) {
+    // Fallback: split on blank lines
     return T.split(/\n{2,}/)
       .map((chunk, i) => {
         const first = chunk.trim().split("\n")[0] || "";
+        const heading = first.slice(0, 60);
+        const body = chunk.trim();
         return {
           number: String(i + 1),
-          heading: first.slice(0, 60).toUpperCase(),
-          body: chunk.trim(),
+          heading: heading.toUpperCase(),
+          body,
+          category: categorize(heading, body),
         };
       })
       .filter((c) => c.body.length > 40);
   }
+
+  // Assign auto-numbers to headings without numbers, in document order
+  let autoNum = 0;
   const out: ParsedClause[] = [];
-  for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index;
-    const end = i + 1 < matches.length ? matches[i + 1].index : T.length;
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i];
+    const start = cur.index;
+    const end = i + 1 < sorted.length ? sorted[i + 1].index : T.length;
     const block = T.slice(start, end).trim();
-    const body = block.replace(/^\d{1,2}\.\s+[A-Z][A-Z0-9 ,&/'\-]+\n/, "").trim();
-    out.push({ number: matches[i].num, heading: matches[i].heading, body });
+    // Strip the heading line from the body
+    const headingLine = block.split("\n")[0];
+    const body = block.slice(headingLine.length).trim();
+    if (body.length < 20) continue; // skip thin/false headings (e.g. preamble titles)
+    autoNum += 1;
+    const number = cur.num || String(autoNum);
+    out.push({
+      number,
+      heading: cur.heading.replace(/\s{2,}/g, " "),
+      body,
+      category: categorize(cur.heading, body),
+    });
   }
   return out;
 }
@@ -593,6 +693,7 @@ export function analyzeContract(text: string): ContractAnalysis {
     amounts,
     totalClauses,
     clauses,
+    clauseCategories: Array.from(new Set(clauses.map((c) => c.category))) as ClauseCategory[],
     risks,
     riskScore,
     complianceScore,
@@ -695,7 +796,7 @@ export function answerQuestion(
   const sentences = top.body.split(/(?<=[.?!])\s+/);
   const best =
     sentences
-      .map((s) => ({ s, score: scoreClause({ number: "", heading: "", body: s }, tokens) }))
+      .map((s) => ({ s, score: scoreClause({ number: "", heading: "", body: s, category: "General" }, tokens) }))
       .sort((x, y) => y.score - x.score)[0]?.s ?? top.body.slice(0, 240);
 
   // If a risk references this exact clause, surface its recommendation too
