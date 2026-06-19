@@ -95,18 +95,20 @@ function ReportPage() {
     writeHeading("3. Risk Assessment");
     writeBody(`Overall Risk Score: ${analysis.riskScore}/100`);
     analysis.risks.forEach((r) => {
-      writeBody(`• [${r.severity.toUpperCase()}] ${r.category}: ${r.explanation} Impact: ${r.impact}`);
+      writeBody(
+        `• [${r.severity.toUpperCase()}] ${r.category} — Source: clause ${r.source.clauseNumber} (${r.source.heading}).\n  Finding: ${r.explanation}\n  Impact: ${r.impact}\n  Evidence: ${r.evidence.join("; ") || "n/a"}`,
+      );
     });
 
     writeHeading("4. Compliance Assessment");
     writeBody(
-      `Compliance Score: ${analysis.complianceScore}%. The contract references the relevant regulatory frameworks and maintains industry-standard certifications where applicable.`,
+      `Compliance Score: ${analysis.complianceScore}%. Derived from grounded findings against named frameworks and contractual commitments.`,
     );
 
     writeHeading("5. Recommendations");
     analysis.risks
       .filter((r) => r.severity !== "low")
-      .forEach((r) => writeBody(`• ${r.category}: ${r.recommendation}`));
+      .forEach((r) => writeBody(`• [Clause ${r.source.clauseNumber} · ${r.source.heading}] ${r.recommendation}`));
 
     writeHeading("6. Final Decision");
     writeBody(`Decision: ${analysis.decision}. ${d.copy}`);
