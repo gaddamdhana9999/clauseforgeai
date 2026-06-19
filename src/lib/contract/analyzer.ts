@@ -796,7 +796,7 @@ export function answerQuestion(
   const sentences = top.body.split(/(?<=[.?!])\s+/);
   const best =
     sentences
-      .map((s) => ({ s, score: scoreClause({ number: "", heading: "", body: s }, tokens) }))
+      .map((s) => ({ s, score: scoreClause({ number: "", heading: "", body: s, category: "General" }, tokens) }))
       .sort((x, y) => y.score - x.score)[0]?.s ?? top.body.slice(0, 240);
 
   // If a risk references this exact clause, surface its recommendation too
