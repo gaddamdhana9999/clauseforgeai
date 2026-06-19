@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             )}
             <div className="hidden md:block px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground font-medium">
-              v1.0 · Hackathon Build
+              Enterprise Contract Intelligence Platform
             </div>
           </div>
         </header>
