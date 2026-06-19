@@ -1,5 +1,11 @@
 export type Severity = "high" | "medium" | "low";
 
+export interface SourceCitation {
+  clauseNumber: string; // e.g. "3" or "—" if outside a numbered clause
+  heading: string; // e.g. "FEES AND PAYMENT"
+  excerpt: string; // verbatim snippet from the contract
+}
+
 export interface RiskItem {
   category: string;
   clause: string;
@@ -8,6 +14,14 @@ export interface RiskItem {
   impact: string;
   recommendation: string;
   excerpt: string;
+  source: SourceCitation;
+  evidence: string[]; // bullet-list of literal patterns found in the clause
+}
+
+export interface ParsedClause {
+  number: string;
+  heading: string;
+  body: string;
 }
 
 export interface ContractAnalysis {
@@ -23,9 +37,10 @@ export interface ContractAnalysis {
   noticePeriod: string;
   amounts: string[];
   totalClauses: number;
+  clauses: ParsedClause[];
   risks: RiskItem[];
-  riskScore: number; // 0-100 (higher = more risk)
-  complianceScore: number; // 0-100 (higher = better)
+  riskScore: number;
+  complianceScore: number;
   highCount: number;
   mediumCount: number;
   lowCount: number;
@@ -37,15 +52,80 @@ export interface ContractAnalysis {
 const DATE_RE =
   /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/gi;
 const MONEY_RE = /\$\s?[\d,]+(?:\.\d+)?(?:\s?(?:million|billion|thousand|M|B|K))?/gi;
-const NOTICE_RE = /(\d+)\s*(?:days?|months?)\s*(?:prior\s+)?(?:written\s+)?notice/gi;
 
-function detectType(t: string): string {
+/* ---------------- Clause parsing ---------------- */
+
+export function parseClauses(text: string): ParsedClause[] {
+  const T = text.replace(/\r/g, "");
+  const re = /(^|\n)\s*(\d{1,2})\.\s+([A-Z][A-Z0-9 ,&/'\-]{2,80})\n/g;
+  const matches: { num: string; heading: string; index: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(T))) {
+    matches.push({ num: m[2], heading: m[3].trim(), index: m.index + m[1].length });
+  }
+  if (matches.length === 0) {
+    // fallback: split on double newlines, derive headings
+    return T.split(/\n{2,}/)
+      .map((chunk, i) => {
+        const first = chunk.trim().split("\n")[0] || "";
+        return {
+          number: String(i + 1),
+          heading: first.slice(0, 60).toUpperCase(),
+          body: chunk.trim(),
+        };
+      })
+      .filter((c) => c.body.length > 40);
+  }
+  const out: ParsedClause[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : T.length;
+    const block = T.slice(start, end).trim();
+    const body = block.replace(/^\d{1,2}\.\s+[A-Z][A-Z0-9 ,&/'\-]+\n/, "").trim();
+    out.push({ number: matches[i].num, heading: matches[i].heading, body });
+  }
+  return out;
+}
+
+function findClause(
+  clauses: ParsedClause[],
+  patterns: RegExp[],
+): ParsedClause | null {
+  for (const c of clauses) {
+    const hay = (c.heading + "\n" + c.body).toLowerCase();
+    if (patterns.some((p) => p.test(hay))) return c;
+  }
+  return null;
+}
+
+function snippet(body: string, around?: RegExp, max = 280): string {
+  const clean = body.replace(/\s+/g, " ").trim();
+  if (!around) return clean.slice(0, max) + (clean.length > max ? "…" : "");
+  const m = around.exec(clean);
+  if (!m) return clean.slice(0, max) + (clean.length > max ? "…" : "");
+  const start = Math.max(0, m.index - 60);
+  const end = Math.min(clean.length, m.index + max - 60);
+  return (start > 0 ? "…" : "") + clean.slice(start, end) + (end < clean.length ? "…" : "");
+}
+
+function cite(c: ParsedClause, around?: RegExp): SourceCitation {
+  return {
+    clauseNumber: c.number,
+    heading: c.heading,
+    excerpt: snippet(c.body, around),
+  };
+}
+
+/* ---------------- Header detection ---------------- */
+
+function detectType(t: string, clauses: ParsedClause[]): string {
   const s = t.toLowerCase();
-  if (/non[- ]disclosure|nda|confidentiality agreement/.test(s)) return "Non-Disclosure Agreement (NDA)";
+  const headings = clauses.map((c) => c.heading.toLowerCase()).join(" ");
+  if (/non[- ]disclosure|\bnda\b|confidentiality agreement/.test(s)) return "Non-Disclosure Agreement (NDA)";
   if (/employment agreement|offer letter|at[- ]will employment/.test(s)) return "Employment Agreement";
   if (/lease|landlord|tenant|premises/.test(s)) return "Lease Agreement";
   if (/vendor|purchase order|supplier/.test(s)) return "Vendor Contract";
-  if (/master services agreement|services agreement|statement of work|sow/.test(s))
+  if (/master services agreement|services agreement|\bsow\b|statement of work/.test(s) || /services/.test(headings))
     return "Master Services Agreement";
   if (/license|licensee|licensor/.test(s)) return "License Agreement";
   return "Commercial Contract";
@@ -54,148 +134,417 @@ function detectType(t: string): string {
 function detectParties(t: string): string[] {
   const parties: string[] = [];
   const re =
-    /between\s+([A-Z][A-Za-z0-9 .,&'-]+?(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Corporation|Company|GmbH|PLC|LLP))\b/g;
+    /(?:between|and)\s+([A-Z][A-Za-z0-9 .,&'\-]+?(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Corporation|Company|GmbH|PLC|LLP|Holdings))\b/g;
   let m;
-  while ((m = re.exec(t))) parties.push(m[1].trim());
-  const re2 = /\band\s+([A-Z][A-Za-z0-9 .,&'-]+?(?:Inc\.?|LLC|Ltd\.?|Corp\.?|Corporation|Company))\b/g;
-  while ((m = re2.exec(t))) parties.push(m[1].trim());
+  while ((m = re.exec(t))) parties.push(m[1].trim().replace(/,$/, ""));
   return Array.from(new Set(parties)).slice(0, 4);
 }
 
-function firstMatch(t: string, re: RegExp): string | null {
-  const m = t.match(re);
-  return m ? m[0] : null;
-}
+/* ---------------- Severity helpers ---------------- */
 
-function findExcerpt(t: string, keywords: RegExp): string {
-  const m = keywords.exec(t);
-  if (!m) return "";
-  const start = Math.max(0, m.index - 80);
-  const end = Math.min(t.length, m.index + 240);
-  return "…" + t.slice(start, end).replace(/\s+/g, " ").trim() + "…";
-}
-
-function scoreSeverity(t: string, patterns: RegExp[]): Severity {
-  const hits = patterns.filter((p) => p.test(t)).length;
-  if (hits >= 3) return "high";
-  if (hits >= 2) return "medium";
+function sev(hi: boolean, mid: boolean): Severity {
+  if (hi) return "high";
+  if (mid) return "medium";
   return "low";
 }
 
+/* ---------------- Per-category builders ---------------- */
+
+type Builder = (clauses: ParsedClause[], full: string) => RiskItem | null;
+
+const buildPayment: Builder = (clauses) => {
+  const c = findClause(clauses, [/payment|invoice|fees?|net\s?\d+|late/]);
+  if (!c) return null;
+  const body = c.body;
+  const net = body.match(/Net\s?(\d{1,3})|within\s+(\d{1,3})\s+days\s+of\s+invoice/i);
+  const netDays = net ? Number(net[1] || net[2]) : null;
+  const interest = body.match(/(\d+(?:\.\d+)?)\s?%\s+per\s+month/i);
+  const rate = interest ? Number(interest[1]) : null;
+  const nonRefund = /non[- ]refundable|no\s+refund/i.test(body);
+  const evidence: string[] = [];
+  if (netDays) evidence.push(`Net ${netDays} payment cycle`);
+  if (rate) evidence.push(`Late interest at ${rate}% per month`);
+  if (nonRefund) evidence.push("Fees are non-refundable");
+  const high = (netDays !== null && netDays >= 60) || (rate !== null && rate >= 2) || nonRefund;
+  const mid = (netDays !== null && netDays >= 45) || (rate !== null && rate >= 1.5);
+  const severity = sev(high, mid);
+  const explanation =
+    `Clause ${c.number} sets ${netDays ? `Net ${netDays}` : "the payment cycle"}` +
+    `${rate ? ` with ${rate}% monthly late interest` : ""}` +
+    `${nonRefund ? " and makes all fees non-refundable" : ""}.`;
+  const impact =
+    severity === "high"
+      ? "Working-capital exposure is material — long collection cycles and high penalty interest compound quickly."
+      : severity === "medium"
+        ? "Cash-flow exposure is moderate; late payments will trigger meaningful interest."
+        : "Standard commercial payment terms with limited exposure.";
+  const recParts: string[] = [];
+  if (netDays && netDays >= 45) recParts.push(`shorten to Net 30 or add a 15-day grace period before interest accrues`);
+  if (rate && rate >= 1.5) recParts.push(`cap late-fee interest at 1.0% per month`);
+  if (nonRefund) recParts.push(`add pro-rata refund for terminated services`);
+  if (recParts.length === 0) recParts.push(`add explicit dispute window before late interest applies`);
+  return {
+    category: "Payment Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation,
+    impact,
+    recommendation: `Redline ${c.heading.toLowerCase()}: ${recParts.join("; ")}.`,
+    excerpt: snippet(body, /payment|net\s?\d+|invoice/i),
+    source: cite(c, /payment|net\s?\d+|invoice|late/i),
+    evidence,
+  };
+};
+
+const buildLiability: Builder = (clauses) => {
+  const c = findClause(clauses, [/liability|damages|indemnif/]);
+  if (!c) return null;
+  const body = c.body;
+  const unlimited = /unlimited\s+liability/i.test(body);
+  const capMonths = body.match(/(?:twelve|24|12|three|3|six|6)\s*\(?(\d{1,2})\)?\s*months?/i);
+  const capFees = /exceed\s+the\s+fees\s+paid/i.test(body);
+  const excludesConseq = /(?:indirect|incidental|consequential)\s+damages/i.test(body);
+  const evidence: string[] = [];
+  if (unlimited) evidence.push("Unlimited liability language present");
+  if (capMonths) evidence.push(`Liability cap tied to ${capMonths[1]} months of fees`);
+  else if (capFees) evidence.push("Liability cap tied to fees paid");
+  if (excludesConseq) evidence.push("Excludes indirect / consequential damages");
+  const months = capMonths ? Number(capMonths[1]) : null;
+  const high = unlimited || (months !== null && months <= 6);
+  const mid = months !== null && months <= 12;
+  const severity = sev(high, mid);
+  const explanation =
+    unlimited
+      ? `Clause ${c.number} contains unlimited-liability language for at least one party.`
+      : months
+        ? `Clause ${c.number} caps aggregate liability at ${months} months of fees paid.`
+        : `Clause ${c.number} limits liability but does not state an explicit dollar floor.`;
+  const impact =
+    severity === "high"
+      ? "Recovery in a catastrophic event may be negligible relative to potential loss, or exposure may be uncapped."
+      : "Recovery is bounded; carve-outs for severe events may be missing.";
+  return {
+    category: "Liability Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation,
+    impact,
+    recommendation: `In clause ${c.number}, add explicit carve-outs (IP infringement, confidentiality breach, gross negligence, willful misconduct) and raise the cap to the greater of 24 months of fees or a fixed super-cap.`,
+    excerpt: snippet(body, /liability|damages|cap/i),
+    source: cite(c, /liability|damages|cap/i),
+    evidence,
+  };
+};
+
+const buildTermination: Builder = (clauses) => {
+  const c = findClause(clauses, [/terminat|term and|renewal/]);
+  if (!c) return null;
+  const body = c.body;
+  const notice = body.match(/(\d{1,3})\s*(?:\(\d+\))?\s*days?\s*(?:prior\s+)?(?:written\s+)?notice/i);
+  const cure = body.match(/(\d{1,3})\s*(?:\(\d+\))?\s*days?\s+(?:following|to)\s+(?:written\s+)?(?:notice|cure)/i);
+  const autoRenew = /automatically\s+renew|auto[- ]?renew/i.test(body);
+  const noConv = /termination\s+for\s+convenience\s+is\s+not\s+permitted/i.test(body);
+  const noticeDays = notice ? Number(notice[1]) : null;
+  const evidence: string[] = [];
+  if (noticeDays) evidence.push(`${noticeDays}-day notice for termination`);
+  if (cure) evidence.push(`${cure[1]}-day cure window for material breach`);
+  if (autoRenew) evidence.push("Auto-renewal provision present");
+  if (noConv) evidence.push("Termination for convenience is prohibited");
+  const high = noConv || (noticeDays !== null && noticeDays >= 120) || autoRenew;
+  const mid = noticeDays !== null && noticeDays >= 90;
+  const severity = sev(high, mid);
+  const explanation =
+    `Clause ${c.number} ` +
+    (noConv ? "prohibits termination for convenience during the initial term" : noticeDays ? `requires ${noticeDays} days written notice to terminate for convenience` : "defines the termination mechanics") +
+    (autoRenew ? " and auto-renews unless non-renewal notice is given" : "") +
+    (cure ? `; material breach has a ${cure[1]}-day cure period` : "") +
+    ".";
+  const impact =
+    severity === "high"
+      ? "Exit flexibility is severely constrained — the buyer may be locked in regardless of business conditions."
+      : "Exit is possible but requires meaningful lead time.";
+  const recParts: string[] = [];
+  if (noConv) recParts.push("introduce a termination-for-convenience right after month 12");
+  if (noticeDays && noticeDays > 60) recParts.push("reduce notice to 60 days");
+  if (autoRenew) recParts.push("change auto-renewal to opt-in (affirmative consent)");
+  recParts.push("add change-of-control termination right");
+  return {
+    category: "Termination Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation,
+    impact,
+    recommendation: `In clause ${c.number}: ${recParts.join("; ")}.`,
+    excerpt: snippet(body, /terminat|notice|renew/i),
+    source: cite(c, /terminat|notice|renew/i),
+    evidence,
+  };
+};
+
+const buildConfidentiality: Builder = (clauses) => {
+  const c = findClause(clauses, [/confidential/]);
+  if (!c) return null;
+  const body = c.body;
+  const yrs = body.match(/(?:for\s+a\s+period\s+of\s+|survive[s]?\s+(?:termination\s+)?(?:for\s+)?)(?:\w+\s+)?\(?(\d{1,2})\)?\s*years?/i);
+  const perpetual = /perpetual|perpetually|so long as/i.test(body);
+  const years = yrs ? Number(yrs[1]) : null;
+  const evidence: string[] = [];
+  if (years) evidence.push(`Confidentiality survives ${years} years post-termination`);
+  if (perpetual) evidence.push("Perpetual obligations for some categories (e.g. trade secrets)");
+  const high = perpetual && !/trade\s+secret/i.test(body) ? true : years !== null && years >= 7;
+  const mid = years !== null && years >= 5;
+  const severity = sev(high, mid);
+  const explanation =
+    years
+      ? `Clause ${c.number} extends confidentiality obligations for ${years} years post-termination${perpetual ? ", with perpetual treatment for trade secrets" : ""}.`
+      : `Clause ${c.number} contains confidentiality obligations without a clearly bounded survival period.`;
+  return {
+    category: "Confidentiality Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation,
+    impact:
+      severity === "low"
+        ? "Confidentiality scope appears aligned with market norms."
+        : "Long survival period restricts internal reuse of skills/processes well after the engagement ends.",
+    recommendation: `In clause ${c.number}, cap general Confidential Information at 3 years post-termination; preserve perpetual treatment only for genuine trade secrets.`,
+    excerpt: snippet(body, /confidential|survive|years?/i),
+    source: cite(c, /confidential|survive|years?/i),
+    evidence,
+  };
+};
+
+const buildIP: Builder = (clauses) => {
+  const c = findClause(clauses, [/intellectual\s+property|work\s+product|ownership/]);
+  if (!c) return null;
+  const body = c.body;
+  const wfh = /work\s+made\s+for\s+hire/i.test(body);
+  const upon = /upon\s+(?:full\s+)?payment/i.test(body);
+  const retainsAll = /retains?\s+ownership\s+of\s+all\s+work\s+product/i.test(body);
+  const license = body.match(/(non[- ]exclusive|exclusive)[^.]{0,40}license/i);
+  const revocable = /revocable\s+license/i.test(body);
+  const evidence: string[] = [];
+  if (wfh) evidence.push("Custom deliverables treated as work-made-for-hire");
+  if (upon) evidence.push("Ownership transfers upon full payment");
+  if (retainsAll) evidence.push("Provider retains ownership of all work product");
+  if (license) evidence.push(`${license[1]} license to Client`);
+  if (revocable) evidence.push("License is revocable");
+  const high = retainsAll || revocable;
+  const mid = !wfh && !upon;
+  const severity = sev(high, mid);
+  const explanation = retainsAll
+    ? `Clause ${c.number} keeps all work-product ownership with the Service Provider and grants only a license.`
+    : wfh
+      ? `Clause ${c.number} assigns custom deliverables to the Client as work-for-hire upon payment; Provider retains background tools.`
+      : `Clause ${c.number} addresses IP ownership but does not cleanly separate Background IP from Deliverables.`;
+  return {
+    category: "IP Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation,
+    impact:
+      severity === "high"
+        ? "Client may not be able to use, modify, or migrate deliverables independently of the Provider."
+        : "Boundary between embedded Background IP and Deliverables may create disputes.",
+    recommendation: retainsAll
+      ? `Rewrite clause ${c.number} so deliverables assign to Client, with a perpetual royalty-free license-back for any embedded Background IP.`
+      : `In clause ${c.number}, expressly enumerate Background IP and grant Client a perpetual, irrevocable, royalty-free license to any embedded components.`,
+    excerpt: snippet(body, /work\s+product|ownership|license/i),
+    source: cite(c, /work\s+product|ownership|license/i),
+    evidence,
+  };
+};
+
+const buildCompliance: Builder = (clauses) => {
+  const c = findClause(clauses, [/data\s+protection|complian|gdpr|hipaa|ccpa|soc\s?2|iso\s?27001|security/]);
+  if (!c) return null;
+  const body = c.body;
+  const frameworks = ["GDPR", "CCPA", "HIPAA", "SOC 2", "ISO 27001"].filter((f) =>
+    new RegExp(f.replace(/\s/g, "\\s?"), "i").test(body),
+  );
+  const soft = /commercially\s+reasonable\s+efforts/i.test(body);
+  const evidence: string[] = [];
+  if (frameworks.length) evidence.push(`References: ${frameworks.join(", ")}`);
+  if (soft) evidence.push('Uses soft "commercially reasonable efforts" standard');
+  const high = soft && frameworks.length === 0;
+  const mid = soft || frameworks.length <= 1;
+  const severity = sev(high, mid);
+  return {
+    category: "Compliance Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation: frameworks.length
+      ? `Clause ${c.number} references ${frameworks.join(", ")}${soft ? " under a soft compliance standard" : " as binding commitments"}.`
+      : `Clause ${c.number} addresses compliance with only a "commercially reasonable efforts" standard and no named frameworks.`,
+    impact:
+      severity === "high"
+        ? "Limited regulatory commitment — Client may bear the residual compliance risk."
+        : "Compliance obligations exist but may lack enforcement teeth (audits, breach notification timelines).",
+    recommendation: `Strengthen clause ${c.number}: require named certifications (SOC 2 Type II, ISO 27001), annual audit rights, and breach notification within 24 hours of discovery.`,
+    excerpt: snippet(body, /gdpr|hipaa|ccpa|soc|compl/i),
+    source: cite(c, /gdpr|hipaa|ccpa|soc|compl/i),
+    evidence,
+  };
+};
+
+const buildIndemnity: Builder = (clauses) => {
+  const c = findClause(clauses, [/indemnif/]);
+  if (!c) return null;
+  const body = c.body;
+  const oneWayClient =
+    /client\s+shall\s+indemnify/i.test(body) && !/service\s+provider\s+shall\s+indemnify/i.test(body);
+  const oneWaySP =
+    /service\s+provider\s+shall\s+indemnify/i.test(body) &&
+    !/client\s+shall\s+indemnify/i.test(body);
+  const evidence: string[] = [];
+  if (oneWayClient) evidence.push("One-way indemnity running FROM Client");
+  if (oneWaySP) evidence.push("One-way indemnity running FROM Service Provider");
+  if (!oneWayClient && !oneWaySP) evidence.push("Mutual indemnity language");
+  const severity: Severity = oneWayClient ? "high" : oneWaySP ? "low" : "medium";
+  return {
+    category: "Indemnity Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation: oneWayClient
+      ? `Clause ${c.number} requires only the Client to indemnify; Service Provider carries no reciprocal obligation.`
+      : oneWaySP
+        ? `Clause ${c.number} places indemnity obligations on the Service Provider, covering IP, negligence and misconduct.`
+        : `Clause ${c.number} sets mutual indemnity covering third-party claims.`,
+    impact:
+      severity === "high"
+        ? "Client bears unlimited downside for Provider-caused third-party claims."
+        : severity === "low"
+          ? "Allocation favors the Client."
+          : "Balanced allocation, but scope of covered claims should be verified.",
+    recommendation:
+      severity === "high"
+        ? `Make indemnity mutual in clause ${c.number}: Provider indemnifies Client for IP infringement, gross negligence, and willful misconduct.`
+        : `Confirm scope in clause ${c.number} covers IP infringement, data breach, and bodily injury.`,
+    excerpt: snippet(body, /indemnif/i),
+    source: cite(c, /indemnif/i),
+    evidence,
+  };
+};
+
+const buildAssignment: Builder = (clauses) => {
+  const c = findClause(clauses, [/assign/]);
+  if (!c) return null;
+  const body = c.body;
+  const spFree = /service\s+provider\s+may\s+assign[^.]*sole\s+discretion/i.test(body);
+  const clientRestricted = /client\s+may\s+not\s+assign/i.test(body);
+  const evidence: string[] = [];
+  if (spFree) evidence.push("Service Provider may assign at sole discretion");
+  if (clientRestricted) evidence.push("Client requires prior written consent to assign");
+  const high = spFree && clientRestricted;
+  const severity: Severity = high ? "high" : "low";
+  return {
+    category: "Assignment Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation: high
+      ? `Clause ${c.number} is asymmetric — Service Provider can freely assign while Client cannot.`
+      : `Clause ${c.number} sets symmetrical assignment restrictions tied to consent or M&A events.`,
+    impact: high
+      ? "Client could be forced to perform with a successor Provider it did not vet."
+      : "Standard market position.",
+    recommendation: high
+      ? `In clause ${c.number}, make assignment mutual and add a Client termination right on any Provider change-of-control.`
+      : `Confirm change-of-control treatment in clause ${c.number}.`,
+    excerpt: snippet(body, /assign/i),
+    source: cite(c, /assign/i),
+    evidence,
+  };
+};
+
+const buildGoverningLaw: Builder = (clauses) => {
+  const c = findClause(clauses, [/governing\s+law|dispute\s+resolution|jurisdiction|arbitration/]);
+  if (!c) return null;
+  const body = c.body;
+  const stateMatch = body.match(/laws?\s+of\s+(?:the\s+State\s+of\s+)?([A-Z][A-Za-z ]+?)(?=[\s,.])/);
+  const exclusive = /exclusively\s+in[^.]+courts/i.test(body);
+  const arbitration = /arbitration/i.test(body);
+  const evidence: string[] = [];
+  if (stateMatch) evidence.push(`Governing law: ${stateMatch[1].trim()}`);
+  if (exclusive) evidence.push("Exclusive forum specified");
+  if (arbitration) evidence.push("Binding arbitration required");
+  const severity: Severity = exclusive && !arbitration ? "medium" : "low";
+  return {
+    category: "Jurisdiction Risk",
+    clause: `Clause ${c.number}. ${c.heading}`,
+    severity,
+    explanation: `Clause ${c.number} fixes the governing law${stateMatch ? ` to ${stateMatch[1].trim()}` : ""}${arbitration ? " and routes disputes to binding arbitration" : exclusive ? " and binds parties to an exclusive court venue" : ""}.`,
+    impact:
+      severity === "medium"
+        ? "Travel and counsel costs in the chosen forum may be disproportionate for one party."
+        : "Forum selection is standard.",
+    recommendation: arbitration
+      ? `In clause ${c.number}, confirm seat, arbitrator count, and emergency-injunction carve-out.`
+      : `In clause ${c.number}, consider a neutral forum or fee-shifting on forum non conveniens motions.`,
+    excerpt: snippet(body, /governing|law|arbitration|court/i),
+    source: cite(c, /governing|law|arbitration|court/i),
+    evidence,
+  };
+};
+
+const BUILDERS: Builder[] = [
+  buildPayment,
+  buildLiability,
+  buildTermination,
+  buildConfidentiality,
+  buildIP,
+  buildCompliance,
+  buildIndemnity,
+  buildAssignment,
+  buildGoverningLaw,
+];
+
+/* ---------------- Main analyzer ---------------- */
+
 export function analyzeContract(text: string): ContractAnalysis {
   const T = text.replace(/\u00a0/g, " ");
-  const type = detectType(T);
+  const clauses = parseClauses(T);
+  const type = detectType(T, clauses);
   const parties = detectParties(T);
   const dates = T.match(DATE_RE) || [];
   const amounts = Array.from(new Set(T.match(MONEY_RE) || [])).slice(0, 6);
-  const notices = T.match(NOTICE_RE) || [];
   const effectiveDate = dates[0] || "Not specified";
   const expirationDate = dates[1] || dates[dates.length - 1] || "Not specified";
 
-  const paymentTerms =
-    firstMatch(T, /Net\s?\d+|within\s+\d+\s+days\s+of\s+invoice|\d+%\s+per\s+month/i) ||
-    "Standard payment terms apply";
-  const terminationConditions = notices[0] || "Termination clause present";
-  const governingLaw =
-    firstMatch(T, /laws?\s+of\s+(?:the\s+State\s+of\s+)?[A-Z][A-Za-z ]+/) || "Not specified";
-  const confidentiality = /confidential/i.test(T)
-    ? "Mutual confidentiality with survival period"
+  const payClause = findClause(clauses, [/payment|invoice|fees/]);
+  const paymentTerms = payClause
+    ? (payClause.body.match(/Net\s?\d+|within\s+\d+\s+days\s+of\s+invoice/i)?.[0] ?? "Per clause " + payClause.number)
+    : "Not specified";
+
+  const termClause = findClause(clauses, [/terminat|term/]);
+  const noticeMatch = termClause?.body.match(/(\d+)\s*(?:\(\d+\))?\s*days?\s*(?:prior\s+)?(?:written\s+)?notice/i);
+  const noticePeriod = noticeMatch ? `${noticeMatch[1]} days written notice` : "Not specified";
+  const terminationConditions = noticePeriod;
+
+  const govClause = findClause(clauses, [/governing\s+law|jurisdiction/]);
+  const govMatch = govClause?.body.match(/laws?\s+of\s+(?:the\s+State\s+of\s+)?[A-Z][A-Za-z ]+/);
+  const governingLaw = govMatch?.[0] ?? "Not specified";
+
+  const confClause = findClause(clauses, [/confidential/]);
+  const confidentiality = confClause
+    ? `Per clause ${confClause.number}: ${snippet(confClause.body, /confidential|survive|years?/i, 140)}`
     : "No explicit confidentiality terms";
 
   const keyObligations: string[] = [];
-  if (/services/i.test(T)) keyObligations.push("Deliver services per Statement of Work");
-  if (/payment|fees/i.test(T)) keyObligations.push("Timely payment of fees and invoices");
-  if (/confidential/i.test(T)) keyObligations.push("Protect Confidential Information");
-  if (/indemnif/i.test(T)) keyObligations.push("Indemnify against third-party claims");
-  if (/comply|compliance|gdpr|hipaa|ccpa|soc/i.test(T))
-    keyObligations.push("Maintain regulatory compliance and certifications");
+  for (const c of clauses) {
+    const h = c.heading.toLowerCase();
+    if (/services/.test(h)) keyObligations.push(`Clause ${c.number}: Deliver services per ${c.heading.toLowerCase()}`);
+    else if (/fees|payment/.test(h)) keyObligations.push(`Clause ${c.number}: Timely payment of fees and invoices`);
+    else if (/confidential/.test(h)) keyObligations.push(`Clause ${c.number}: Protect Confidential Information`);
+    else if (/indemnif/.test(h)) keyObligations.push(`Clause ${c.number}: Indemnify against third-party claims`);
+    else if (/data|complian|security/.test(h)) keyObligations.push(`Clause ${c.number}: Maintain regulatory compliance`);
+  }
   if (keyObligations.length === 0) keyObligations.push("General performance per contract terms");
 
-  // Risk evaluation
   const risks: RiskItem[] = [];
-
-  const paySev = scoreSeverity(T, [
-    /late|interest|1\.5%|penalt/i,
-    /Net\s?(?:45|60|90)/i,
-    /no\s+refund|non[- ]refundable/i,
-  ]);
-  risks.push({
-    category: "Payment Risk",
-    clause: "Fees and Payment",
-    severity: paySev,
-    explanation:
-      "Payment terms include interest on late payments and standard Net 30 cycle. Cash-flow exposure is moderate.",
-    impact: "Late fees may accrue; potential service suspension on non-payment.",
-    recommendation: "Negotiate grace period and cap late-fee interest at 1% per month.",
-    excerpt: findExcerpt(T, /payment|invoice|net\s?\d+/i),
-  });
-
-  const liabSev = scoreSeverity(T, [
-    /unlimited\s+liability/i,
-    /no\s+limitation\s+of\s+liability/i,
-    /consequential\s+damages/i,
-  ]);
-  risks.push({
-    category: "Liability Risk",
-    clause: "Limitation of Liability",
-    severity: /unlimited/i.test(T) ? "high" : liabSev === "low" ? "low" : "medium",
-    explanation:
-      "Liability cap is tied to 12 months of fees. Indirect and consequential damages are excluded.",
-    impact: "Recovery in catastrophic events may be limited to fees paid.",
-    recommendation: "Carve-outs for IP infringement, data breach, and willful misconduct.",
-    excerpt: findExcerpt(T, /liability|damages/i),
-  });
-
-  const termSev = scoreSeverity(T, [/auto[- ]renew/i, /no\s+termination/i, /perpetual/i]);
-  risks.push({
-    category: "Termination Risk",
-    clause: "Term and Termination",
-    severity: termSev,
-    explanation:
-      "Termination for convenience requires 90 days notice. Material breach requires 30-day cure period.",
-    impact: "Cannot exit quickly without notice obligations or financial penalties.",
-    recommendation: "Reduce notice to 60 days and add termination for change-of-control.",
-    excerpt: findExcerpt(T, /terminat/i),
-  });
-
-  const compSev = scoreSeverity(T, [/gdpr/i, /hipaa/i, /ccpa/i, /soc\s?2/i, /iso\s?27001/i]);
-  risks.push({
-    category: "Compliance Risk",
-    clause: "Data Protection and Compliance",
-    severity: compSev === "high" ? "low" : compSev === "medium" ? "low" : "medium",
-    explanation:
-      "Contract references key data protection and security certifications relevant to enterprise SaaS.",
-    impact: "Failure to maintain certifications could trigger breach and reputational damage.",
-    recommendation: "Annual audit rights and notification within 24h of any certification lapse.",
-    excerpt: findExcerpt(T, /gdpr|hipaa|ccpa|soc\s?2/i),
-  });
-
-  const ipSev = scoreSeverity(T, [
-    /work\s+made\s+for\s+hire/i,
-    /assign\s+all\s+right/i,
-    /retain[s]?\s+ownership/i,
-  ]);
-  risks.push({
-    category: "IP Risk",
-    clause: "Intellectual Property",
-    severity: ipSev,
-    explanation:
-      "Custom work product transfers to Client upon payment. Provider retains underlying tools and frameworks.",
-    impact: "Ambiguity between retained frameworks and deliverables may create ownership disputes.",
-    recommendation: "Define 'Background IP' explicitly and grant perpetual license to embedded components.",
-    excerpt: findExcerpt(T, /intellectual\s+property|ownership/i),
-  });
-
-  const confSev = scoreSeverity(T, [/five\s+\(5\)\s+years/i, /perpetually/i, /survive/i]);
-  risks.push({
-    category: "Confidentiality Risk",
-    clause: "Confidentiality",
-    severity: confSev,
-    explanation: "Confidentiality survives 5 years post-termination — above market standard of 3 years.",
-    impact: "Extended obligations restrict business flexibility long after engagement ends.",
-    recommendation: "Negotiate down to 3 years except for trade secrets (which can be perpetual).",
-    excerpt: findExcerpt(T, /confidential/i),
-  });
+  for (const b of BUILDERS) {
+    const r = b(clauses, T);
+    if (r) risks.push(r);
+  }
 
   const highCount = risks.filter((r) => r.severity === "high").length;
   const mediumCount = risks.filter((r) => r.severity === "medium").length;
@@ -203,20 +552,17 @@ export function analyzeContract(text: string): ContractAnalysis {
 
   const riskScore = Math.min(
     100,
-    Math.round(highCount * 22 + mediumCount * 11 + lowCount * 4 + 10),
+    Math.round(highCount * 22 + mediumCount * 11 + lowCount * 4 + 8),
   );
   const complianceScore = Math.max(
     20,
-    Math.min(100, 100 - Math.round(riskScore * 0.55) + (compSev === "high" ? 10 : 0)),
+    Math.min(100, 100 - Math.round(riskScore * 0.55)),
   );
 
   const decision: ContractAnalysis["decision"] =
     riskScore >= 65 ? "High Risk" : riskScore >= 35 ? "Approved With Revisions" : "Approved";
 
-  const totalClauses = Math.max(
-    8,
-    (T.match(/\n\s*\d+\.\s/g) || []).length || Math.round(T.length / 700),
-  );
+  const totalClauses = clauses.length || Math.max(8, Math.round(T.length / 700));
 
   const categoryCounts: Record<string, number> = {
     Payment: (T.match(/payment|invoice|fee/gi) || []).length,
@@ -227,7 +573,11 @@ export function analyzeContract(text: string): ContractAnalysis {
     Compliance: (T.match(/gdpr|hipaa|ccpa|soc\s?2|regulat|complian/gi) || []).length,
   };
 
-  const summary = `${type} between ${parties.join(" and ") || "the parties"}, effective ${effectiveDate}. Contains ${totalClauses} core clauses with ${highCount} high-severity, ${mediumCount} medium, and ${lowCount} low-severity risk findings. Overall risk score ${riskScore}/100, compliance posture ${complianceScore}/100. Recommended decision: ${decision}.`;
+  const summary =
+    `${type} between ${parties.join(" and ") || "the parties"}, effective ${effectiveDate}. ` +
+    `Parsed ${totalClauses} numbered clauses and generated ${risks.length} grounded findings ` +
+    `(${highCount} high, ${mediumCount} medium, ${lowCount} low). ` +
+    `Overall risk ${riskScore}/100, compliance ${complianceScore}/100. Recommended decision: ${decision}.`;
 
   return {
     type,
@@ -239,9 +589,10 @@ export function analyzeContract(text: string): ContractAnalysis {
     keyObligations,
     confidentiality,
     governingLaw,
-    noticePeriod: notices[0] || "Standard notice period applies",
+    noticePeriod,
     amounts,
     totalClauses,
+    clauses,
     risks,
     riskScore,
     complianceScore,
@@ -254,52 +605,106 @@ export function analyzeContract(text: string): ContractAnalysis {
   };
 }
 
+/* ---------------- Retrieval-style Q&A ---------------- */
+
+const STOPWORDS = new Set([
+  "the","a","an","is","are","was","were","of","in","on","for","to","and","or","with","what","which","who","whom","whose","this","that","these","those","my","our","your","their","its","it","be","do","does","did","have","has","had","can","could","should","would","will","may","might","about","contract","clause","agreement","please","tell","me",
+]);
+
+function scoreClause(c: ParsedClause, tokens: string[]): number {
+  const hay = (c.heading + " " + c.body).toLowerCase();
+  let s = 0;
+  for (const t of tokens) {
+    if (!t) continue;
+    const matches = hay.match(new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"));
+    if (matches) s += matches.length * (t.length > 5 ? 2 : 1);
+    if (c.heading.toLowerCase().includes(t)) s += 3;
+  }
+  return s;
+}
+
+const SYNONYMS: Record<string, string[]> = {
+  pay: ["payment", "invoice", "fees", "net"],
+  cost: ["payment", "fees", "price"],
+  price: ["fees", "amount"],
+  fees: ["payment", "invoice"],
+  exit: ["terminat", "renew"],
+  cancel: ["terminat"],
+  leave: ["terminat"],
+  ip: ["intellectual", "property", "work", "ownership"],
+  owner: ["ownership", "intellectual"],
+  nda: ["confidential"],
+  secret: ["confidential"],
+  privacy: ["data", "protection", "gdpr"],
+  law: ["governing", "jurisdiction"],
+  court: ["governing", "jurisdiction", "arbitration"],
+  risk: ["risk"],
+  party: ["parties", "between"],
+};
+
 export function answerQuestion(
   q: string,
   text: string,
   a: ContractAnalysis,
-): { answer: string; citation: string } {
-  const Q = q.toLowerCase();
-  let answer = "";
-  let citation = "";
+): { answer: string; citation: string; source?: SourceCitation } {
+  const Q = q.trim();
+  if (!Q) return { answer: "Ask any question about this contract.", citation: "" };
 
-  if (/payment|invoice|fee|cost|price/.test(Q)) {
-    answer = `Payment terms: ${a.paymentTerms}. ${a.amounts.length ? "Referenced amounts include " + a.amounts.join(", ") + "." : ""}`;
-    citation = findExcerpt(text, /payment|invoice|net\s?\d+|fee/i);
-  } else if (/risk/.test(Q)) {
-    answer = `Overall risk score is ${a.riskScore}/100 with ${a.highCount} high, ${a.mediumCount} medium, and ${a.lowCount} low severity issues across ${a.risks.length} categories.`;
-    citation = a.risks
-      .filter((r) => r.severity === "high")
-      .map((r) => r.category + ": " + r.explanation)
-      .join(" | ") || a.risks[0].explanation;
-  } else if (/terminat|exit|cancel/.test(Q)) {
-    answer = `Termination: ${a.terminationConditions}. Notice period applies and material breach has a cure window.`;
-    citation = findExcerpt(text, /terminat/i);
-  } else if (/ip|intellectual|own/.test(Q)) {
-    answer = `Intellectual property ownership: custom work product transfers to Client upon payment; Service Provider retains pre-existing tools and frameworks.`;
-    citation = findExcerpt(text, /intellectual\s+property|ownership/i);
-  } else if (/confidential|nda/.test(Q)) {
-    answer = `Confidentiality: ${a.confidentiality}.`;
-    citation = findExcerpt(text, /confidential/i);
-  } else if (/govern|jurisdiction|law/.test(Q)) {
-    answer = `Governing law: ${a.governingLaw}.`;
-    citation = findExcerpt(text, /govern|laws?\s+of/i);
-  } else if (/part(y|ies)|who/.test(Q)) {
-    answer = `Parties to the agreement: ${a.parties.join(", ")}.`;
-    citation = findExcerpt(text, /between\s+/i);
-  } else if (/summar|overview/.test(Q)) {
-    answer = a.summary;
-    citation = `Document type detected: ${a.type}.`;
-  } else {
-    // Keyword search
-    const tokens = Q.split(/\W+/).filter((w) => w.length > 3);
-    const sentences = text.split(/(?<=[.?!])\s+/);
-    const hit = sentences.find((s) => tokens.some((t) => s.toLowerCase().includes(t)));
-    answer = hit
-      ? `Based on the contract, here is the most relevant clause: ${hit.trim().slice(0, 320)}`
-      : `I couldn't find a direct match in the contract. Try asking about payment terms, risks, termination, IP, confidentiality, or governing law.`;
-    citation = hit ? "…" + hit.trim().slice(0, 200) + "…" : "";
+  // Quick path: summary / parties / risk meta
+  const QL = Q.toLowerCase();
+  if (/^(summari[sz]e|overview|tl;?dr)/i.test(QL) || /summary/i.test(QL)) {
+    return { answer: a.summary, citation: `Document type detected: ${a.type}. ${a.totalClauses} clauses parsed.` };
+  }
+  if (/(who|parties).*(part|sign|between)/i.test(QL) || /\bparties\b/i.test(QL)) {
+    return {
+      answer: `Parties to the agreement: ${a.parties.join(", ")}. Effective ${a.effectiveDate}.`,
+      citation: "Detected from the agreement's preamble.",
+    };
+  }
+  if (/(overall|total)?\s*risk\s+(score|level|profile)/i.test(QL)) {
+    const top = a.risks.filter((r) => r.severity === "high").map((r) => r.category).join(", ") || "no high-severity items";
+    return {
+      answer: `Overall risk score ${a.riskScore}/100 across ${a.risks.length} categories (${a.highCount} high / ${a.mediumCount} medium / ${a.lowCount} low). High-severity categories: ${top}.`,
+      citation: a.risks
+        .filter((r) => r.severity === "high")
+        .map((r) => `${r.source.heading} (clause ${r.source.clauseNumber}): ${r.explanation}`)
+        .join(" | ") || a.risks[0]?.source.heading || "",
+    };
   }
 
-  return { answer, citation };
+  // Retrieval over actual clauses
+  const rawTokens = QL.split(/\W+/).filter((w) => w && !STOPWORDS.has(w));
+  const tokens = [...rawTokens];
+  for (const t of rawTokens) if (SYNONYMS[t]) tokens.push(...SYNONYMS[t]);
+
+  const ranked = a.clauses
+    .map((c) => ({ c, s: scoreClause(c, tokens) }))
+    .filter((x) => x.s > 0)
+    .sort((x, y) => y.s - x.s);
+
+  if (ranked.length === 0) {
+    return {
+      answer:
+        "I couldn't find a clause in this contract that addresses that. Try asking about payment terms, termination, IP ownership, confidentiality, indemnity, governing law, or compliance.",
+      citation: "",
+    };
+  }
+
+  const top = ranked[0].c;
+  // Pick the best sentence in the clause
+  const sentences = top.body.split(/(?<=[.?!])\s+/);
+  const best =
+    sentences
+      .map((s) => ({ s, score: scoreClause({ number: "", heading: "", body: s }, tokens) }))
+      .sort((x, y) => y.score - x.score)[0]?.s ?? top.body.slice(0, 240);
+
+  // If a risk references this exact clause, surface its recommendation too
+  const relatedRisk = a.risks.find((r) => r.source.clauseNumber === top.number);
+  const tail = relatedRisk ? ` This clause is flagged as ${relatedRisk.severity.toUpperCase()} ${relatedRisk.category.toLowerCase()} — recommendation: ${relatedRisk.recommendation}` : "";
+
+  return {
+    answer: `Per clause ${top.number} (${top.heading}): ${best.trim()}${tail}`,
+    citation: snippet(top.body, undefined, 260),
+    source: { clauseNumber: top.number, heading: top.heading, excerpt: snippet(top.body, undefined, 260) },
+  };
 }
