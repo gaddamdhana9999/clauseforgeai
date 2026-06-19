@@ -122,8 +122,14 @@ function Dashboard() {
       <div className="card-elevated p-6 gradient-navy text-white">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-wider text-gold/90 mb-1">
-              Active Contract Analysis
+            <div className="flex items-center gap-2 mb-1">
+              <div className="text-xs uppercase tracking-wider text-gold/90">
+                Active Contract Analysis
+              </div>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-400/15 text-emerald-300 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-emerald-400/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Analysis Complete
+              </span>
             </div>
             <div className="text-xl font-display font-bold truncate max-w-[60ch]">{fileName}</div>
             <div className="text-sm text-white/70 mt-1">{analysis.type}</div>
