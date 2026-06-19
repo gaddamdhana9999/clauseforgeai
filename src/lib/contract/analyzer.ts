@@ -693,6 +693,7 @@ export function analyzeContract(text: string): ContractAnalysis {
     amounts,
     totalClauses,
     clauses,
+    clauseCategories: Array.from(new Set(clauses.map((c) => c.category))) as ClauseCategory[],
     risks,
     riskScore,
     complianceScore,
