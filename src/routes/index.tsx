@@ -123,7 +123,7 @@ function Dashboard() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="text-xs uppercase tracking-wider text-gold/90 mb-1">
-              Currently Analyzing
+              Active Contract Analysis
             </div>
             <div className="text-xl font-display font-bold truncate max-w-[60ch]">{fileName}</div>
             <div className="text-sm text-white/70 mt-1">{analysis.type}</div>

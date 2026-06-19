@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="text-xs">
                 <div className={`flex items-center gap-1.5 ${isDemo ? "text-gold" : "text-success"}`}>
                   <CheckCircle2 className="w-3 h-3" />
-                  <span className="font-medium">{isDemo ? "Demo Mode" : "Uploaded Contract"}</span>
+                  <span className="font-medium">{isDemo ? "Sample Contract Analysis" : "Uploaded Contract"}</span>
                 </div>
                 <div className="truncate text-sidebar-foreground/70 mt-0.5" title={fileName}>
                   {fileName}
@@ -116,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               isDemo ? (
                 <div className="px-3 py-1.5 rounded-full bg-gold/15 text-navy border border-gold/40 font-semibold flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Demo Mode
+                  Sample Contract Analysis
                 </div>
               ) : (
                 <div className="px-3 py-1.5 rounded-full bg-success/15 text-success border border-success/40 font-semibold flex items-center gap-1.5">
