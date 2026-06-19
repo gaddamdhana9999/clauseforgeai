@@ -110,8 +110,25 @@ export function AppShell({ children }: { children: ReactNode }) {
               {nav.find((n) => n.to === pathname)?.label || "LegalShield AI"}
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-2 text-xs">
-            <div className="px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground font-medium">
+          <div className="flex items-center gap-2 text-xs">
+            {fileName ? (
+              isDemo ? (
+                <div className="px-3 py-1.5 rounded-full bg-gold/15 text-navy border border-gold/40 font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Demo Mode
+                </div>
+              ) : (
+                <div className="px-3 py-1.5 rounded-full bg-success/15 text-success border border-success/40 font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Uploaded Contract Mode
+                </div>
+              )
+            ) : (
+              <div className="px-3 py-1.5 rounded-full bg-muted text-muted-foreground font-medium">
+                No Contract
+              </div>
+            )}
+            <div className="hidden md:block px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground font-medium">
               v1.0 · Hackathon Build
             </div>
           </div>
