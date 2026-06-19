@@ -1,4 +1,4 @@
-export const DEMO_CONTRACT_NAME = "MasterServicesAgreement_Acme_Globex_2025.pdf";
+export const DEMO_CONTRACT_NAME = "Sample Enterprise Services Agreement.pdf";
 
 export const DEMO_CONTRACT_TEXT = `MASTER SERVICES AGREEMENT
 
