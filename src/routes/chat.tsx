@@ -8,7 +8,7 @@ import { Send, Sparkles, Bot, User, Quote } from "lucide-react";
 export const Route = createFileRoute("/chat")({
   head: () => ({
     meta: [
-      { title: "AI Chat — LegalShield AI" },
+      { title: "AI Chat — ClauseForge AI" },
       { name: "description", content: "Conversational assistant for your uploaded contract." },
     ],
   }),
@@ -43,7 +43,7 @@ function ChatPage() {
     return (
       <EmptyState
         title="No contract loaded"
-        description="Upload a contract or load the demo to chat with the LegalShield assistant."
+        description="Upload a contract or load the demo to chat with the ClauseForge assistant."
       />
     );
   }
@@ -63,7 +63,7 @@ function ChatPage() {
           <Sparkles className="w-5 h-5" />
         </div>
         <div>
-          <div className="font-display font-semibold text-navy">LegalShield Assistant</div>
+          <div className="font-display font-semibold text-navy">ClauseForge Assistant</div>
           <div className="text-xs text-muted-foreground">Grounded in your uploaded contract</div>
         </div>
       </div>

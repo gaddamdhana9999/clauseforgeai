@@ -17,7 +17,7 @@ import {
 export const Route = createFileRoute("/summary")({
   head: () => ({
     meta: [
-      { title: "Contract Summary — LegalShield AI" },
+      { title: "Contract Summary — ClauseForge AI" },
       { name: "description", content: "Executive summary of contract terms and obligations." },
     ],
   }),

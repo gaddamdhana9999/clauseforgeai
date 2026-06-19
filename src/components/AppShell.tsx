@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {open && (
             <div className="overflow-hidden">
               <div className="font-display font-bold text-sm leading-tight whitespace-nowrap">
-                LegalShield AI
+                ClauseForge AI
               </div>
               <div className="text-[10px] text-sidebar-foreground/60 whitespace-nowrap">
                 Contract Intelligence
@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex-1">
             <div className="text-xs text-muted-foreground">Enterprise Workspace</div>
             <div className="font-display font-semibold">
-              {nav.find((n) => n.to === pathname)?.label || "LegalShield AI"}
+              {nav.find((n) => n.to === pathname)?.label || "ClauseForge AI"}
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs">

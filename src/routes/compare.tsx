@@ -8,7 +8,7 @@ import { ArrowRightLeft, Upload, FileCheck2, CheckCircle2, XCircle, AlertTriangl
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/compare")({
-  head: () => ({ meta: [{ title: "Contract Comparison — LegalShield AI" }] }),
+  head: () => ({ meta: [{ title: "Contract Comparison — ClauseForge AI" }] }),
   component: ComparePage,
 });
 

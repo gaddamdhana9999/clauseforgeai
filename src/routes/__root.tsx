@@ -80,22 +80,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LegalShield AI — Contract Intelligence Platform" },
+      { title: "ClauseForge AI — Contract Intelligence Platform" },
       {
         name: "description",
         content:
           "Enterprise contract intelligence platform. Upload contracts, get instant risk analysis, compliance scoring, and executive reports.",
       },
-      { property: "og:title", content: "LegalShield AI — Contract Intelligence Platform" },
+      { property: "og:title", content: "ClauseForge AI — Contract Intelligence Platform" },
       {
         property: "og:description",
         content: "Enterprise contract intelligence platform.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "LegalShield AI — Contract Intelligence Platform" },
-      { name: "description", content: "Contract Compass is an in-browser legal contract analysis platform." },
-      { property: "og:description", content: "Contract Compass is an in-browser legal contract analysis platform." },
-      { name: "twitter:description", content: "Contract Compass is an in-browser legal contract analysis platform." },
+      { name: "twitter:title", content: "ClauseForge AI — Contract Intelligence Platform" },
+      { name: "description", content: "ClauseForge AI is an in-browser legal contract analysis platform." },
+      { property: "og:description", content: "ClauseForge AI is an in-browser legal contract analysis platform." },
+      { name: "twitter:description", content: "ClauseForge AI is an in-browser legal contract analysis platform." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8e4efa24-ab2a-4ce9-b829-a4a23e85632d/id-preview-f6e20fcc--e1593593-74b8-4c18-accc-c9151ba7d3a8.lovable.app-1781864921835.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8e4efa24-ab2a-4ce9-b829-a4a23e85632d/id-preview-f6e20fcc--e1593593-74b8-4c18-accc-c9151ba7d3a8.lovable.app-1781864921835.png" },
       { name: "twitter:card", content: "summary_large_image" },
