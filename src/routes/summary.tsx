@@ -12,6 +12,8 @@ import {
   Gavel,
   ListChecks,
   Scale,
+  Layers,
+  Tag,
 } from "lucide-react";
 
 export const Route = createFileRoute("/summary")({
