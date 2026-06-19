@@ -8,7 +8,7 @@ import { extractPdfText } from "@/lib/contract/pdf";
 export const Route = createFileRoute("/upload")({
   head: () => ({
     meta: [
-      { title: "Upload Contract — LegalShield AI" },
+      { title: "Upload Contract — ClauseForge AI" },
       { name: "description", content: "Upload a PDF contract for instant AI-powered analysis." },
     ],
   }),

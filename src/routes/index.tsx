@@ -31,7 +31,7 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — LegalShield AI" },
+      { title: "Dashboard — ClauseForge AI" },
       { name: "description", content: "Contract intelligence dashboard with KPIs and analytics." },
     ],
   }),
@@ -91,7 +91,7 @@ function Dashboard() {
       <div>
         <Hero />
         <EmptyState
-          title="Welcome to LegalShield AI"
+          title="Welcome to ClauseForge AI"
           description="Upload a contract PDF or load the built-in demo to see real-time risk analysis, compliance scoring, and an executive-ready report."
         />
       </div>
@@ -260,7 +260,7 @@ function Hero() {
           Contract Intelligence, in Minutes
         </h1>
         <p className="text-white/80 max-w-2xl">
-          LegalShield AI combines a multi-agent analysis pipeline with executive reporting to turn
+          ClauseForge AI combines a multi-agent analysis pipeline with executive reporting to turn
           dense legal contracts into board-ready insights.
         </p>
       </div>

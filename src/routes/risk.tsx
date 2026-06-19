@@ -7,7 +7,7 @@ import { AlertTriangle, AlertCircle, ShieldCheck, Quote } from "lucide-react";
 export const Route = createFileRoute("/risk")({
   head: () => ({
     meta: [
-      { title: "Risk Analysis — LegalShield AI" },
+      { title: "Risk Analysis — ClauseForge AI" },
       { name: "description", content: "Clause-level risk analysis with severity and recommendations." },
     ],
   }),

@@ -6,7 +6,7 @@ import type { RiskItem } from "@/lib/contract/analyzer";
 
 export const Route = createFileRoute("/negotiate")({
   head: () => ({
-    meta: [{ title: "AI Negotiation Assistant — LegalShield AI" }],
+    meta: [{ title: "AI Negotiation Assistant — ClauseForge AI" }],
   }),
   component: NegotiatePage,
 });
